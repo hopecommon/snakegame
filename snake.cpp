@@ -96,7 +96,7 @@ bool Snake::hitWall()
     int headY = mSnake[0].getY();
 
     // 检查蛇头是否超出游戏板的边界
-    if (headX < 0 || headX >= mGameBoardWidth || headY < 0 || headY >= mGameBoardHeight)
+    if (headX <= 1 || headX >= mGameBoardWidth - 2 || headY <= 1 || headY >= mGameBoardHeight - 2)
     {
         return true; // 蛇头撞到墙壁
     }
