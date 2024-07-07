@@ -79,6 +79,10 @@ void Game::createGameBoard()
     int startX = 0;
     // 创建游戏区域窗口
     this->mWindows[1] = newwin(this->mScreenHeight - this->mInformationHeight, this->mScreenWidth - this->mInstructionWidth, startY, startX);
+    // // 绘制边框
+    // box(this->mWindows[1], 0, 0);
+    // // 刷新游戏区域窗口
+    // wrefresh(this->mWindows[1]);
 }
 
 // 渲染游戏区域
@@ -422,7 +426,9 @@ void Game::runGame()
 
         // 清空游戏区域窗口
         werase(this->mWindows[1]);
-        // 移动蛇
+        // 绘制边框
+        box(this->mWindows[1], 0, 0);
+        //  移动蛇
         moveSuccess = this->mPtrSnake->moveFoward();
         // 渲染蛇
         this->renderSnake();
