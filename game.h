@@ -1,12 +1,14 @@
 #ifndef GAME_H
 #define GAME_H
 
-#include <ncurses.h>
+#include <SDL2/SDL.h> //  替换 ncurses.h
 #include <string>
 #include <vector>
 #include <memory>
 
 #include "snake.h"
+#include "constants.h"
+#include <SDL2/SDL_ttf.h> // 包含 SDL_ttf 头文件
 
 // 游戏类，负责游戏逻辑的运行和控制
 class Game
@@ -17,20 +19,10 @@ public:
   // 析构函数，释放资源
   ~Game();
 
-  // 创建信息面板
-  void createInformationBoard();
-  // 渲染信息面板
-  void renderInformationBoard() const;
-
-  // 创建游戏区域
-  void createGameBoard();
-  // 渲染游戏区域
-  void renderGameBoard() const;
-
-  // 创建指令面板
-  void createInstructionBoard();
-  // 渲染指令面板
-  void renderInstructionBoard() const;
+  // 初始化 SDL
+  bool initSDL();
+  // 关闭 SDL
+  void closeSDL();
 
   // 加载排行榜信息
   void loadLeadBoard();
@@ -42,38 +34,25 @@ public:
   bool updateLeaderBoard();
   // 将排行榜信息写入文件
   bool writeLeaderBoard();
-  // 渲染排行榜
-  void renderLeaderBoard() const;
-
-  // 渲染所有游戏窗口
-  void renderBoards() const;
 
   // 初始化游戏
   void initializeGame();
   // 运行游戏逻辑
   void runGame();
-  // 渲染得分
-  void renderPoints() const;
-  // 渲染难度
-  void renderDifficulty() const;
 
   // 创建随机食物
-  void createRamdonFood();
-  // 渲染食物
-  void renderFood() const;
-  // 渲染蛇
-  void renderSnake() const;
-  // 控制蛇的移动方向
-  void controlSnake() const;
+  void createRamdomFood();
 
   // 开始游戏
   void startGame();
   // 渲染游戏结束界面，并询问玩家是否重新开始游戏
-  bool renderRestartMenu() const;
+  bool renderRestartMenu();
   // 调整游戏延时
   void adjustDelay();
 
 private:
+  // 字体
+  TTF_Font *font;
   // 屏幕宽度和高度
   int mScreenWidth;
   int mScreenHeight;
@@ -81,21 +60,18 @@ private:
   int mGameBoardWidth;
   int mGameBoardHeight;
   // 信息面板高度
-  const int mInformationHeight = 6;
+  const int mInformationHeight = 2 * GRID_SIZE;
   // 指令面板宽度
-  const int mInstructionWidth = 18;
-  // 游戏窗口列表
-  std::vector<WINDOW *> mWindows;
+  const int mInstructionWidth = 10 * GRID_SIZE;
+  // SDL 窗口和渲染器
+  SDL_Window *window = nullptr;
+  SDL_Renderer *renderer = nullptr;
   // 蛇的初始长度
   const int mInitialSnakeLength = 2;
-  // 蛇的符号
-  const char mSnakeSymbol = '@';
   // 蛇对象指针
   std::unique_ptr<Snake> mPtrSnake;
   // 食物信息
   SnakeBody mFood;
-  // 食物符号
-  const char mFoodSymbol = '#';
   // 玩家得分
   int mPoints = 0;
   // 游戏难度
@@ -110,6 +86,27 @@ private:
   std::vector<int> mLeaderBoard;
   // 排行榜最大记录数量
   const int mNumLeaders = 3;
+  bool isRunning = true;                   //  控制游戏循环的标志变量
+  bool keyPressed = false;                 //  记录按键是否已经被按下的标志变量
+  Direction lastDirection = Direction::Up; //  记录蛇暂停前的移动方向，默认为 Up
+  //  禁止拷贝构造函数和赋值运算符，防止资源重复释放
+  Game(const Game &) = delete;
+  Game &operator=(const Game &) = delete;
+
+  // 渲染函数声明
+  void renderText(const std::string &text, int x, int y, SDL_Color color) const;
+  int getTextWidth(const std::string &text) const;
+  void renderGameBoard() const;
+  void renderInformationBoard() const;
+  void renderInstructionBoard() const;
+  void renderLeaderBoard() const;
+  void renderFood() const;
+  void renderSnake() const;
+  void renderPoints() const;
+  void renderDifficulty() const;
+
+  // 处理 SDL 事件
+  void handleEvents();
 };
 
 #endif

@@ -1,10 +1,10 @@
 snakegame: main.o game.o snake.o
-	g++ -o snakegame main.o game.o snake.o -lcurses
+	g++ -o snakegame main.o game.o snake.o -lcurses -lSDL2 -lSDL2_ttf
 main.o: main.cpp game.h
 	g++ -c main.cpp
-game.o: game.cpp snake.h
+game.o: game.cpp snake.h constants.h
 	g++ -c game.cpp
-snake.o: snake.cpp
+snake.o: snake.cpp constants.h
 	g++ -c snake.cpp
 clean:
 	rm *.o 

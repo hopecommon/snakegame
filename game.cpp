@@ -2,7 +2,7 @@
 #include <iostream>
 #include <cmath>
 
-// 用于终端延时
+// 用于时间控制
 #include <chrono>
 #include <thread>
 
@@ -11,253 +11,305 @@
 
 #include "game.h"
 
-// 游戏类，负责游戏逻辑的运行和控制
-Game::Game()
+// 构造函数
+Game::Game() : font(nullptr), mScreenWidth(WINDOW_WIDTH), mScreenHeight(WINDOW_HEIGHT) // 设置窗口高度
 {
-    // 将屏幕分成三个窗口
-    this->mWindows.resize(3);
-    // 初始化 ncurses 库
-    initscr();
-    // 如果没有按键按下，则不等待按键输入
-    nodelay(stdscr, true);
-    // 打开键盘控制
-    keypad(stdscr, true);
-    // 关闭字符回显
-    noecho();
-    // 隐藏光标
-    curs_set(0);
-    // 获取屏幕和游戏区域参数
-    getmaxyx(stdscr, this->mScreenHeight, this->mScreenWidth);
-    this->mGameBoardWidth = this->mScreenWidth - this->mInstructionWidth;
-    this->mGameBoardHeight = this->mScreenHeight - this->mInformationHeight;
+    // 初始化 SDL
+    if (!initSDL())
+    {
+        std::cerr << "SDL 初始化失败: " << SDL_GetError() << std::endl;
+        throw std::runtime_error("SDL 初始化失败");
+    }
 
-    // 创建信息面板、游戏区域和指令面板
-    this->createInformationBoard();
-    this->createGameBoard();
-    this->createInstructionBoard();
+    // 加载字体
+    font = TTF_OpenFont("arial.ttf", 16);
+    if (font == nullptr)
+    {
+        std::cerr << "字体加载失败: " << TTF_GetError() << std::endl;
+        // 清理 SDL (因为 SDL 初始化成功了)
+        closeSDL();
+        //  可以 choice 抛出异常或退出程序
+        throw std::runtime_error("字体加载失败");
+    }
+    // 计算游戏区域大小
+    mGameBoardWidth = mScreenWidth - mInstructionWidth;
+    mGameBoardHeight = mScreenHeight - mInformationHeight;
 
-    // 初始化排行榜为全零
-    this->mLeaderBoard.assign(this->mNumLeaders, 0);
+    // 初始化排行榜
+    mLeaderBoard.assign(mNumLeaders, 0);
 }
 
+// 析构函数
 Game::~Game()
 {
-    // 释放窗口资源
-    for (int i = 0; i < this->mWindows.size(); i++)
+    closeSDL();
+}
+bool Game::initSDL()
+{
+    //  初始化 SDL
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
-        delwin(this->mWindows[i]);
+        std::cerr << "SDL 初始化失败: " << SDL_GetError() << std::endl;
+        return false;
     }
-    // 关闭 ncurses 库
-    endwin();
+
+    //  初始化 SDL_ttf
+    if (TTF_Init() == -1)
+    {
+        std::cerr << "SDL_ttf 初始化失败: " << TTF_GetError() << std::endl;
+        SDL_Quit(); //  如果 SDL_ttf 初始化失败，则需要关闭 SDL
+        return false;
+    }
+
+    //  创建窗口
+    window = SDL_CreateWindow("Snake Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+                              mScreenWidth, mScreenHeight, SDL_WINDOW_SHOWN);
+    if (window == nullptr)
+    {
+        std::cerr << "窗口创建失败: " << SDL_GetError() << std::endl;
+        TTF_Quit(); //  如果窗口创建失败，则需要关闭 SDL_ttf
+        SDL_Quit(); //  如果窗口创建失败，则需要关闭 SDL
+        return false;
+    }
+
+    //  创建渲染器
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer == nullptr)
+    {
+        std::cerr << "渲染器创建失败: " << SDL_GetError() << std::endl;
+        SDL_DestroyWindow(window); //  如果渲染器创建失败，则需要销毁窗口
+        TTF_Quit();                //  如果渲染器创建失败，则需要关闭 SDL_ttf
+        SDL_Quit();                //  如果渲染器创建失败，则需要关闭 SDL
+        return false;
+    }
+
+    return true;
 }
 
-// 创建信息面板
-void Game::createInformationBoard()
+// 关闭 SDL
+void Game::closeSDL()
 {
-    int startY = 0;
-    int startX = 0;
-    // 创建信息面板窗口
-    this->mWindows[0] = newwin(this->mInformationHeight, this->mScreenWidth, startY, startX);
-}
 
-// 渲染信息面板
-void Game::renderInformationBoard() const
+    // 释放字体资源
+    if (font != nullptr)
+    {
+        TTF_CloseFont(font);
+        font = nullptr;
+    }
+
+    // 销毁渲染器
+    if (renderer != nullptr)
+    {
+        SDL_DestroyRenderer(renderer);
+        renderer = nullptr;
+    }
+
+    // 销毁窗口
+    if (window != nullptr)
+    {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+    }
+
+    // 退出 SDL_ttf
+    TTF_Quit();
+
+    // 退出 SDL
+    SDL_Quit();
+}
+// 函数用于渲染文字
+void Game::renderText(const std::string &text, int x, int y, SDL_Color color) const
 {
-    // 在信息面板上输出欢迎语和游戏说明
-    mvwprintw(this->mWindows[0], 1, 1, "Welcome to The Snake Game!");
-    mvwprintw(this->mWindows[0], 2, 1, "This is a mock version.");
-    mvwprintw(this->mWindows[0], 3, 1, "Please fill in the blanks to make it work properly!!");
-    mvwprintw(this->mWindows[0], 4, 1, "Implemented using C++ and libncurses library.");
-    // 刷新信息面板窗口
-    wrefresh(this->mWindows[0]);
-}
+    SDL_Surface *surface = TTF_RenderText_Solid(font, text.c_str(), color);
+    if (surface == nullptr)
+    {
+        std::cerr << "Failed to create text surface! SDL_ttf Error: " << TTF_GetError() << std::endl;
+        return;
+    }
 
-// 创建游戏区域
-void Game::createGameBoard()
-{
-    int startY = this->mInformationHeight;
-    int startX = 0;
-    // 创建游戏区域窗口
-    this->mWindows[1] = newwin(this->mScreenHeight - this->mInformationHeight, this->mScreenWidth - this->mInstructionWidth, startY, startX);
-    // // 绘制边框
-    // box(this->mWindows[1], 0, 0);
-    // // 刷新游戏区域窗口
-    // wrefresh(this->mWindows[1]);
-}
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (texture == nullptr)
+    {
+        std::cerr << "Failed to create text texture! SDL Error: " << SDL_GetError() << std::endl;
+        SDL_FreeSurface(surface);
+        return;
+    }
 
+    SDL_Rect dstRect = {x, y, surface->w, surface->h};
+    SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
+
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
 // 渲染游戏区域
 void Game::renderGameBoard() const
 {
-    // 刷新游戏区域窗口
-    wrefresh(this->mWindows[1]);
-}
+    SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF); // 设置边框颜色 (白色)
 
-// 创建指令面板
-void Game::createInstructionBoard()
+    // 绘制上边框
+    SDL_RenderDrawLine(renderer, 0, 0, mGameBoardWidth, 0);
+    // 绘制下边框
+    SDL_RenderDrawLine(renderer, 0, mGameBoardHeight - 1, mGameBoardWidth, mGameBoardHeight - 1);
+    // 绘制左边框
+    SDL_RenderDrawLine(renderer, 0, 0, 0, mGameBoardHeight);
+    // 绘制右边框
+    SDL_RenderDrawLine(renderer, mGameBoardWidth - 1, 0, mGameBoardWidth - 1, mGameBoardHeight);
+}
+// 渲染信息面板
+void Game::renderInformationBoard() const
 {
-    int startY = this->mInformationHeight;
-    int startX = this->mScreenWidth - this->mInstructionWidth;
-    // 创建指令面板窗口
-    this->mWindows[2] = newwin(this->mScreenHeight - this->mInformationHeight, this->mInstructionWidth, startY, startX);
-}
 
+    // 设置文字颜色 (例如，白色)
+    SDL_Color textColor = {255, 255, 255, 255};
+    // 使用百分比计算文本位置
+    int x = 0.05 * mScreenWidth;                          // 距离游戏区域左侧 5% 的位置
+    int y = mGameBoardHeight + 0.05 * mInformationHeight; // 距离屏幕顶部 5% 的位置
+    // 渲染文字
+    renderText("Welcome to The Snake Game!", x, y, textColor);
+}
 // 渲染指令面板
 void Game::renderInstructionBoard() const
 {
-    // 在指令面板上输出游戏操作说明
-    mvwprintw(this->mWindows[2], 1, 1, "Manual");
+    SDL_Color textColor = {255, 255, 255, 255};
 
-    mvwprintw(this->mWindows[2], 3, 1, "Up: W");
-    mvwprintw(this->mWindows[2], 4, 1, "Down: S");
-    mvwprintw(this->mWindows[2], 5, 1, "Left: A");
-    mvwprintw(this->mWindows[2], 6, 1, "Right: D");
+    // 使用百分比计算文本位置
+    int x = mGameBoardWidth + 0.05 * mScreenWidth; // 距离游戏区域右侧 5% 的位置
+    int y = 0.05 * mScreenHeight;                  // 距离屏幕顶部 5% 的位置
+    int ySpacing = 0.04 * mScreenHeight;           // 行间距为屏幕高度的 5%
 
-    mvwprintw(this->mWindows[2], 8, 1, "Difficulty");
-    mvwprintw(this->mWindows[2], 11, 1, "Points");
+    renderText("Manual", x, y, textColor);
+    y += ySpacing;
 
-    // 刷新指令面板窗口
-    wrefresh(this->mWindows[2]);
+    renderText("Up: W", x, y, textColor);
+    y += ySpacing;
+
+    renderText("Down: S", x, y, textColor);
+    y += ySpacing;
+
+    renderText("Left: A", x, y, textColor);
+    y += ySpacing;
+
+    renderText("Right: D", x, y, textColor);
+    y += ySpacing;
+    renderText("Pause: P/Space", x, y, textColor);
+    y += ySpacing;
 }
-
+//  辅助函数：获取文字宽度
+int Game::getTextWidth(const std::string &text) const
+{
+    int w;
+    TTF_SizeText(font, text.c_str(), &w, nullptr);
+    return w;
+}
 // 渲染排行榜
 void Game::renderLeaderBoard() const
 {
-    // 如果没有足够的空间，则跳过渲染排行榜
-    if (this->mScreenHeight - this->mInformationHeight - 14 - 2 < 3 * 2)
-    {
-        return;
-    }
-    // 在指令面板上输出排行榜标题
-    mvwprintw(this->mWindows[2], 14, 1, "Leader Board");
-    std::string pointString;
-    std::string rank;
+    SDL_Color textColor = {255, 255, 255, 255};
+
+    // 使用百分比计算文本位置
+    int x = mGameBoardWidth + 0.05 * mScreenWidth; // 距离游戏区域右侧 5% 的位置
+    int y = 0.4 * mScreenHeight;                   // 距离屏幕顶部 40% 的位置
+    int ySpacing = 0.04 * mScreenHeight;           // 行间距为屏幕高度的 5%
+
+    renderText("Leader Board", x, y, textColor);
+    y += ySpacing;
+
     // 渲染排行榜数据
-    for (int i = 0; i < std::min(this->mNumLeaders, this->mScreenHeight - this->mInformationHeight - 14 - 2); i++)
+    for (int i = 0; i < mNumLeaders; i++)
     {
-        pointString = std::to_string(this->mLeaderBoard[i]);
-        rank = "#" + std::to_string(i + 1) + ":";
-        mvwprintw(this->mWindows[2], 14 + (i + 1), 1, rank.c_str());
-        mvwprintw(this->mWindows[2], 14 + (i + 1), 5, pointString.c_str());
+        std::string rankText = "#" + std::to_string(i + 1) + ": " + std::to_string(mLeaderBoard[i]);
+        renderText(rankText, x, y, textColor);
+        y += ySpacing;
     }
-    // 刷新指令面板窗口
-    wrefresh(this->mWindows[2]);
 }
 
 // 渲染游戏结束界面，并询问玩家是否重新开始游戏
-bool Game::renderRestartMenu() const
+bool Game::renderRestartMenu()
 {
-    // 创建一个菜单窗口
-    WINDOW *menu;
-    int width = this->mGameBoardWidth * 0.5;
-    int height = this->mGameBoardHeight * 0.5;
-    int startX = this->mGameBoardWidth * 0.25;
-    int startY = this->mGameBoardHeight * 0.25 + this->mInformationHeight;
+    // 使用 SDL_ttf 渲染文字和按钮
+    // 创建一个半透明的黑色覆盖层
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xCC);
+    SDL_Rect overlayRect = {0, 0, mScreenWidth, mScreenHeight};
+    SDL_RenderFillRect(renderer, &overlayRect);
 
-    menu = newwin(height, width, startY, startX);
-    // 在菜单窗口上绘制边框
-    box(menu, 0, 0);
-    // 定义菜单选项
-    std::vector<std::string> menuItems = {"Restart", "Quit"};
+    SDL_Color textColor = {255, 255, 255, 255};
+    // 使用百分比计算文本位置
+    int centerX = mScreenWidth / 2;
+    int centerY = mScreenHeight / 2;
 
-    // 初始化菜单选项索引
-    int index = 0;
-    int offset = 4;
-    // 在菜单窗口上输出玩家最终得分
-    mvwprintw(menu, 1, 1, "Your Final Score:");
-    std::string pointString = std::to_string(this->mPoints);
-    mvwprintw(menu, 2, 1, pointString.c_str());
-    // 设置当前选项为高亮显示
-    wattron(menu, A_STANDOUT);
-    mvwprintw(menu, 0 + offset, 1, menuItems[0].c_str());
-    wattroff(menu, A_STANDOUT);
-    // 输出其他菜单选项
-    mvwprintw(menu, 1 + offset, 1, menuItems[1].c_str());
+    // 渲染 "Game Over"
+    renderText("Game Over", centerX - getTextWidth("Game Over") / 2, centerY - 0.1 * mScreenHeight, textColor);
 
-    // 刷新菜单窗口
-    wrefresh(menu);
+    // 渲染最终得分
+    std::string scoreText = "Your Final Score: " + std::to_string(mPoints);
+    renderText(scoreText, centerX - getTextWidth(scoreText) / 2, centerY, textColor);
 
-    // 监听玩家键盘输入，处理菜单选择
-    int key;
-    while (true)
+    // 渲染 "Restart" 按钮
+    renderText("Restart (R)", centerX - getTextWidth("Restart (R)") / 2, centerY + 0.1 * mScreenHeight, textColor);
+
+    // 渲染 "Quit" 按钮
+    renderText("Quit (Q)", centerX - getTextWidth("Quit (Q)") / 2, centerY + 0.2 * mScreenHeight, textColor);
+
+    // 更新屏幕以显示菜单
+    SDL_RenderPresent(renderer);
+
+    // 处理玩家输入
+    SDL_Event e;
+    bool keepWaiting = true;
+    while (keepWaiting)
     {
-        key = getch();
-        switch (key)
+        //  将内层 while 循环改为 if 语句
+        if (SDL_PollEvent(&e) != 0)
         {
-        case 'W':
-        case 'w':
-        case KEY_UP:
-        {
-            // 移除上一选项的高亮显示
-            mvwprintw(menu, index + offset, 1, menuItems[index].c_str());
-            // 调整选项索引
-            index--;
-            index = (index < 0) ? menuItems.size() - 1 : index;
-            // 设置当前选项为高亮显示
-            wattron(menu, A_STANDOUT);
-            mvwprintw(menu, index + offset, 1, menuItems[index].c_str());
-            wattroff(menu, A_STANDOUT);
-            break;
+            if (e.type == SDL_QUIT)
+            {
+                isRunning = false;
+                return false;
+            }
+            if (e.type == SDL_KEYDOWN)
+            {
+                switch (e.key.keysym.sym)
+                {
+                case SDLK_r:
+                    keepWaiting = false;
+                    isRunning = true;
+                    return true; // 玩家选择重新开始
+                case SDLK_q:
+                    keepWaiting = false;
+                    return false; // 玩家选择退出
+                }
+            }
         }
-        case 'S':
-        case 's':
-        case KEY_DOWN:
-        {
-            // 移除上一选项的高亮显示
-            mvwprintw(menu, index + offset, 1, menuItems[index].c_str());
-            // 调整选项索引
-            index++;
-            index = (index > menuItems.size() - 1) ? 0 : index;
-            // 设置当前选项为高亮显示
-            wattron(menu, A_STANDOUT);
-            mvwprintw(menu, index + offset, 1, menuItems[index].c_str());
-            wattroff(menu, A_STANDOUT);
-            break;
-        }
-        }
-        // 刷新菜单窗口
-        wrefresh(menu);
-        // 如果玩家按下空格键或回车键，则退出循环
-        if (key == ' ' || key == 10)
-        {
-            break;
-        }
-        // 延迟100毫秒，避免菜单响应过于灵敏
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        SDL_Delay(10); // 防止 CPU 占用过高
     }
-    // 释放菜单窗口资源
-    delwin(menu);
-
-    // 根据玩家选择的选项返回相应的结果
-    if (index == 0)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return false;
 }
 
 // 渲染得分
 void Game::renderPoints() const
 {
-    // 将得分转换为字符串，并输出到指令面板
-    std::string pointString = std::to_string(this->mPoints);
-    mvwprintw(this->mWindows[2], 12, 1, pointString.c_str());
-    // 刷新指令面板窗口
-    wrefresh(this->mWindows[2]);
+    SDL_Color textColor = {255, 255, 255, 255};
+    std::string pointsText = "Points: " + std::to_string(mPoints);
+
+    // 使用百分比计算文本位置
+    int x = mGameBoardWidth + 0.05 * mScreenWidth; // 距离游戏区域右侧 5% 的位置
+    int y = 0.3 * mScreenHeight;                   // 距离屏幕顶部 15% 的位置
+
+    renderText(pointsText, x, y, textColor);
 }
 
 // 渲染难度
 void Game::renderDifficulty() const
 {
-    // 将难度转换为字符串，并输出到指令面板
-    std::string difficultyString = std::to_string(this->mDifficulty);
-    mvwprintw(this->mWindows[2], 9, 1, difficultyString.c_str());
-    // 刷新指令面板窗口
-    wrefresh(this->mWindows[2]);
-}
+    SDL_Color textColor = {255, 255, 255, 255};
+    std::string difficultyText = "Difficulty: " + std::to_string(mDifficulty);
 
+    // 使用百分比计算文本位置
+    int x = mGameBoardWidth + 0.05 * mScreenWidth; // 距离游戏区域右侧 5% 的位置
+    int y = 0.35 * mScreenHeight;                  // 距离屏幕顶部 10% 的位置
+
+    renderText(difficultyText, x, y, textColor);
+}
 // 初始化游戏
 void Game::initializeGame()
 {
@@ -268,7 +320,7 @@ void Game::initializeGame()
     this->mPoints = 0;
     this->renderPoints(); // 渲染得分
     // 在随机位置生成食物
-    this->createRamdonFood();
+    this->createRamdomFood();
     this->renderFood(); // 渲染食物
     // 让蛇感知到食物
     this->mPtrSnake->senseFood(this->mFood);
@@ -278,220 +330,241 @@ void Game::initializeGame()
 }
 
 // 创建随机食物
-void Game::createRamdonFood()
+void Game::createRamdomFood()
 {
-    // TODO 在随机位置生成食物
-    // TODO 确保食物不与蛇重叠
     int foodX, foodY;
-    // 生成随机食物的横坐标和纵坐标
     do
     {
-        // 随机生成食物的坐标
-        foodX = rand() % (this->mGameBoardWidth - 2) + 1;
-        foodY = rand() % (this->mGameBoardHeight - 2) + 1;
-    } while (this->mPtrSnake->isPartOfSnake(foodX, foodY)); // 确保食物不与蛇重叠
+        // 使用常量 GRID_SIZE
+        foodX = rand() % (mGameBoardWidth / GRID_SIZE - 2) + 1;
+        foodY = rand() % (mGameBoardHeight / GRID_SIZE - 2) + 1;
+    } while (mPtrSnake->isPartOfSnake(foodX, foodY));
 
-    this->mFood = SnakeBody(foodX, foodY);
+    mFood = SnakeBody(foodX, foodY);
 }
-
 // 渲染食物
 void Game::renderFood() const
 {
-    // 在游戏区域窗口中渲染食物
-    mvwaddch(this->mWindows[1], this->mFood.getY(), this->mFood.getX(), this->mFoodSymbol);
-    // 刷新游戏区域窗口
-    wrefresh(this->mWindows[1]);
+    SDL_Rect foodRect = {
+        mFood.getX() * GRID_SIZE,
+        mFood.getY() * GRID_SIZE,
+        GRID_SIZE,
+        GRID_SIZE};
+    SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF); // 红色
+    SDL_RenderFillRect(renderer, &foodRect);
 }
 
 // 渲染蛇
 void Game::renderSnake() const
 {
-    // 获取蛇的长度
-    int snakeLength = this->mPtrSnake->getLength();
-    // 获取蛇的身体部位列表
-    std::vector<SnakeBody> &snake = this->mPtrSnake->getSnake();
-    // 渲染蛇的身体部位
-    for (int i = 0; i < snakeLength; i++)
+    // 获取蛇身信息
+    const std::vector<SnakeBody> &snake = mPtrSnake->getSnake();
+
+    // 使用常量 GRID_SIZE 渲染蛇身
+    SDL_SetRenderDrawColor(renderer, 0x00, 0xFF, 0x00, 0xFF); // 绿色
+    for (const auto &snakePart : snake)
     {
-        mvwaddch(this->mWindows[1], snake[i].getY(), snake[i].getX(), this->mSnakeSymbol);
+        SDL_Rect snakePartRect = {
+            snakePart.getX() * GRID_SIZE,
+            snakePart.getY() * GRID_SIZE,
+            GRID_SIZE,
+            GRID_SIZE};
+        SDL_RenderFillRect(renderer, &snakePartRect);
     }
-    // 刷新游戏区域窗口
-    wrefresh(this->mWindows[1]);
 }
 
-// 控制蛇的移动方向
-void Game::controlSnake() const
+void Game::handleEvents()
 {
-    int key;
-    // 获取用户键盘输入
-    key = getch();
-    // 根据按键处理蛇的移动方向
-    switch (key)
+    SDL_Event e;
+    while (SDL_PollEvent(&e) != 0)
     {
-    case 'W':
-    case 'w':
-    case KEY_UP:
-    {
-        // 改变蛇的移动方向为向上
-        this->mPtrSnake->changeDirection(Direction::Up);
-        break;
-    }
-    case 'S':
-    case 's':
-    case KEY_DOWN:
-    {
-        // 改变蛇的移动方向为向下
-        this->mPtrSnake->changeDirection(Direction::Down);
-        break;
-    }
-    case 'A':
-    case 'a':
-    case KEY_LEFT:
-    {
-        // 改变蛇的移动方向为向左
-        this->mPtrSnake->changeDirection(Direction::Left);
-        break;
-    }
-    case 'D':
-    case 'd':
-    case KEY_RIGHT:
-    {
-        // 改变蛇的移动方向为向右
-        this->mPtrSnake->changeDirection(Direction::Right);
-        break;
-    }
-    default:
-    {
-        break;
-    }
+        switch (e.type)
+        {
+        case SDL_QUIT:
+            isRunning = false; // 设置 isRunning 为 false，退出游戏循环
+            break;
+        case SDL_KEYDOWN:
+
+            switch (e.key.keysym.sym)
+            {
+            case SDLK_UP:
+            case SDLK_w:
+                // lastDirection = Direction::Up;
+                mPtrSnake->changeDirection(Direction::Up);
+                break;
+            case SDLK_DOWN:
+            case SDLK_s:
+                // lastDirection = Direction::Down;
+                mPtrSnake->changeDirection(Direction::Down);
+                break;
+            case SDLK_LEFT:
+            case SDLK_a:
+                // lastDirection = Direction::Left;
+                mPtrSnake->changeDirection(Direction::Left);
+                break;
+            case SDLK_RIGHT:
+            case SDLK_d:
+                // lastDirection = Direction::Right;
+                mPtrSnake->changeDirection(Direction::Right);
+                break;
+            case SDLK_ESCAPE:
+            case SDLK_SPACE:
+            case SDLK_p:
+                if (mPtrSnake->getDirection() == Direction::None)
+                {
+                    //  如果游戏处于暂停状态，则恢复游戏
+                    mPtrSnake->changeDirection(lastDirection); //  恢复之前的移动方向
+                }
+                else
+                {
+                    //  如果游戏正在运行，则暂停游戏
+                    lastDirection = mPtrSnake->getDirection(); //  保存之前的移动方向
+                    mPtrSnake->changeDirection(Direction::None);
+                }
+                break;
+            default:
+                break; // 忽略其他按键
+            }
+            // keyPressed = true; // 记录按键已经被按下
+            break;
+        // case SDL_KEYUP:
+        //     keyPressed = false; // 记录按键已经被释放
+        //     break;
+        default:
+            break; // 忽略其他事件
+        }
     }
 }
-
-// 渲染所有游戏窗口
-void Game::renderBoards() const
-{
-    // 清空所有窗口内容
-    for (int i = 0; i < this->mWindows.size(); i++)
-    {
-        werase(this->mWindows[i]);
-    }
-    // 渲染信息面板、游戏区域和指令面板
-    this->renderInformationBoard();
-    this->renderGameBoard();
-    this->renderInstructionBoard();
-    // 重新绘制所有窗口边框
-    for (int i = 0; i < this->mWindows.size(); i++)
-    {
-        box(this->mWindows[i], 0, 0);
-        wrefresh(this->mWindows[i]);
-    }
-    // 渲染排行榜
-    this->renderLeaderBoard();
-}
-
 // 调整游戏延时
 void Game::adjustDelay()
 {
-    // 根据得分调整难度
-    this->mDifficulty = this->mPoints / 5;
-    // 如果得分是5的倍数，则更新游戏延时
+    mDifficulty = mPoints / 5;
     if (mPoints % 5 == 0)
     {
-        this->mDelay = this->mBaseDelay * pow(0.75, this->mDifficulty);
+        mPtrSnake->setSpeed(mPtrSnake->getSpeed() + 0.5f); //  每增加 5 分，蛇的速度增加 0.5
     }
 }
 
 // 运行游戏逻辑
+
 void Game::runGame()
 {
-    bool moveSuccess;
-    int key;
-    // 游戏循环
-    while (true)
+    // 初始化计时器
+    using clock = std::chrono::steady_clock;
+    auto lastFrameTime = clock::now();
+    auto lastLogicUpdateTime = lastFrameTime;
+
+    // 创建静态元素的纹理
+    SDL_Texture *staticElementsTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, mScreenWidth, mScreenHeight);
+
+    // 渲染静态元素到纹理
+    SDL_SetRenderTarget(renderer, staticElementsTexture);
+    renderGameBoard();
+    renderInformationBoard();
+    renderInstructionBoard();
+    renderLeaderBoard();
+    SDL_SetRenderTarget(renderer, nullptr);
+
+    // 游戏主循环
+    while (isRunning)
     {
-        /* TODO
-         * 这是游戏主循环
-         * 它一直运行，并执行以下操作：
-         * 	1. 处理键盘输入
-         * 	2. 清空窗口
-         * 	3. 移动蛇
-         * 	4. 检查蛇是否吃到了食物
-         * 	5. 检查蛇是否撞到障碍物
-         * 	6. 根据步骤3和4的结果执行相应的操作
-         *   7. 渲染食物和蛇的当前位置
-         *   8. 更新游戏状态并刷新窗口
-         */
-        // 处理键盘输入
-        this->controlSnake();
+        // 1. 计算帧时间
+        auto currentFrameTime = clock::now();
+        float deltaTime = std::chrono::duration<float>(currentFrameTime - lastFrameTime).count();
+        lastFrameTime = currentFrameTime;
 
-        // 清空游戏区域窗口
-        werase(this->mWindows[1]);
-        // 绘制边框
-        box(this->mWindows[1], 0, 0);
-        //  移动蛇
-        moveSuccess = this->mPtrSnake->moveFoward();
-        // 渲染蛇
-        this->renderSnake();
+        // 2. 处理键盘输入
+        handleEvents();
 
-        // 检查蛇是否吃到了食物
-        if (moveSuccess)
+        // 3. 更新游戏逻辑 (每秒 20 次)
+        if (std::chrono::duration<float>(currentFrameTime - lastLogicUpdateTime).count() >= 0.05f)
         {
-            // 如果蛇吃到了食物，则更新得分并生成新的食物
-            this->mPoints++;
-            this->renderPoints();
-            this->adjustDelay();
-            this->createRamdonFood();
-            this->renderFood();
-        }
-        // 检查蛇是否撞到障碍物
-        if (this->mPtrSnake->checkCollision())
-        {
-            // 如果蛇撞到障碍物，则游戏结束
-            break;
-        }
-        // 蛇感知食物
-        this->mPtrSnake->senseFood(this->mFood);
-        this->renderFood();
-        this->renderSnake();
-        // 更新游戏状态并刷新窗口
-        this->renderPoints();
-        this->renderDifficulty();
-        wrefresh(this->mWindows[1]);
-        // 延时
-        std::this_thread::sleep_for(std::chrono::milliseconds(this->mDelay));
+            lastLogicUpdateTime = currentFrameTime;
 
-        // 刷新屏幕
-        refresh();
+            mPtrSnake->update(deltaTime);
+
+            // 检查是否需要移动蛇
+            if (mPtrSnake->getAccumulatedTime() >= 1.0f / mPtrSnake->getSpeed())
+            {
+                mPtrSnake->resetAccumulatedTime(); // 重置累积时间
+                                                   // 检查蛇是否处于暂停状态
+                if (mPtrSnake->getDirection() != Direction::None)
+                {
+                    // 移动蛇
+                    bool moveSuccess = mPtrSnake->moveFoward();
+
+                    // 检查蛇是否吃到了食物
+                    if (moveSuccess)
+                    {
+                        mPoints++;
+                        adjustDelay();
+                        createRamdomFood();
+                        // 蛇感知食物
+                        this->mPtrSnake->senseFood(this->mFood);
+                    }
+
+                    // 检查蛇是否撞到障碍物
+                    if (mPtrSnake->checkCollision())
+                    {
+                        isRunning = false;
+                        break; // 游戏结束
+                    }
+                }
+            }
+        }
+
+        // 4. 渲染游戏画面
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // 设置背景颜色 (黑色)
+        SDL_RenderClear(renderer);                                // 清空渲染器
+
+        // 渲染静态元素
+        SDL_RenderCopy(renderer, staticElementsTexture, nullptr, nullptr);
+
+        // 只渲染动态元素
+        renderSnake();
+        renderFood();
+        renderPoints();
+        renderDifficulty();
+
+        // 5. 更新屏幕
+        SDL_RenderPresent(renderer);
+
+        // 6. 控制游戏速度 (目标帧率 60 FPS)
+        float targetFrameTime = 1.0f / 30.0f;
+        float sleepTime = targetFrameTime - deltaTime;
+        if (sleepTime > 0)
+        {
+            SDL_Delay(static_cast<Uint32>(sleepTime * 1000.0f));
+        }
     }
-}
 
+    // 清理资源
+    SDL_DestroyTexture(staticElementsTexture);
+}
 // 开始游戏
 void Game::startGame()
 {
-    // 刷新屏幕
-    refresh();
-    bool choice;
-    // 游戏主循环
-    while (true)
+    while (isRunning)
     {
-        // 加载排行榜信息
-        this->readLeaderBoard();
-        // 渲染游戏界面
-        this->renderBoards();
+        // 加载排行榜
+        readLeaderBoard();
+
         // 初始化游戏
-        this->initializeGame();
-        // 运行游戏逻辑
-        this->runGame();
+        initializeGame();
+
+        // 运行游戏
+        runGame();
+
         // 更新排行榜
-        this->updateLeaderBoard();
-        // 保存排行榜信息
-        this->writeLeaderBoard();
-        // 显示游戏结束界面，询问玩家是否重新开始
-        choice = this->renderRestartMenu();
-        // 如果玩家选择退出游戏，则结束游戏循环
-        if (choice == false)
+        updateLeaderBoard();
+
+        // 保存排行榜
+        writeLeaderBoard();
+
+        // 显示重新开始菜单
+        if (!renderRestartMenu())
         {
-            break;
+            break; // 退出游戏
         }
     }
 }
@@ -499,27 +572,21 @@ void Game::startGame()
 // 从文件加载排行榜信息
 bool Game::readLeaderBoard()
 {
-    // 以二进制读模式打开排行榜文件
-    std::fstream fhand(this->mRecordBoardFilePath, fhand.binary | fhand.in);
-    // 如果打开文件失败，则返回false
+    std::fstream fhand(mRecordBoardFilePath, fhand.binary | fhand.in);
     if (!fhand.is_open())
     {
         return false;
     }
-    // 临时变量，用于读取排行榜数据
+
     int temp;
     int i = 0;
-    // 读取排行榜文件中的数据，直到文件结束或读取到指定数量的数据
-    while ((!fhand.eof()) && (i < mNumLeaders))
+    while (!fhand.eof() && i < mNumLeaders)
     {
         fhand.read(reinterpret_cast<char *>(&temp), sizeof(temp));
-        // 将读取到的数据保存到排行榜数据数组中
-        this->mLeaderBoard[i] = temp;
+        mLeaderBoard[i] = temp;
         i++;
     }
-    // 关闭文件
     fhand.close();
-    // 返回true表示读取成功
     return true;
 }
 

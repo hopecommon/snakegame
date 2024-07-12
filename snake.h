@@ -2,7 +2,7 @@
 #define SNAKE_H
 
 #include <vector>
-
+#include "constants.h"
 // 蛇的移动方向枚举
 enum class Direction
 {
@@ -10,6 +10,7 @@ enum class Direction
     Down = 1,
     Left = 2,
     Right = 3,
+    None = 4,
 };
 
 // 蛇身体部位类
@@ -25,7 +26,7 @@ public:
     // 获取蛇身体部位的纵坐标
     int getY() const;
     // 重载 == 运算符，用于比较两个蛇身体部位是否相同
-    bool operator==(const SnakeBody &snakeBody);
+    bool operator==(const SnakeBody &snakeBody) const;
 
 private:
     // 蛇身体部位的横坐标
@@ -46,28 +47,39 @@ public:
     // 初始化蛇
     void initializeSnake();
     // 判断给定坐标点是否在蛇的身体上
-    bool isPartOfSnake(int x, int y);
+    bool isPartOfSnake(int x, int y) const; //  添加 const
     // 让蛇感知到食物的位置
-    void senseFood(SnakeBody food);
+    void senseFood(const SnakeBody &food); //  参数改为 const 引用
     // 判断蛇是否接触到食物
-    bool touchFood();
+    bool touchFood() const; //  添加 const
     // 判断蛇是否撞到墙壁
-    bool hitWall();
+    bool hitWall() const; //  添加 const
     // 判断蛇是否撞到自身
-    bool hitSelf();
+    bool hitSelf() const; //  添加 const
     // 检查蛇是否发生碰撞
-    bool checkCollision();
+    bool checkCollision() const; //  添加 const
 
     // 改变蛇的移动方向
     bool changeDirection(Direction newDirection);
     // 获取蛇的身体部位列表
-    std::vector<SnakeBody> &getSnake();
+    const std::vector<SnakeBody> &getSnake() const; //  返回 const 引用
     // 获取蛇的长度
-    int getLength();
+    int getLength() const; //  添加 const
     // 生成蛇头的下一个位置
-    SnakeBody createNewHead();
+    SnakeBody createNewHead() const; //  添加 const
     // 移动蛇
     bool moveFoward();
+    // 更新蛇的位置 (根据时间)
+    void update(float deltaTime);
+
+    // 获取累积时间
+    float getAccumulatedTime() const;
+    // 获取速度
+    float getSpeed() const;
+    // 重置累积时间
+    void resetAccumulatedTime();
+    Direction getDirection() const;
+    void setSpeed(float speed);
 
 private:
     // 游戏区域宽度
@@ -82,6 +94,11 @@ private:
     SnakeBody mFood;
     // 蛇的身体部位列表
     std::vector<SnakeBody> mSnake;
+    // 蛇的移动速度 (每个网格单位/秒)
+    float mSpeed = 15.0f;
+
+    // 累积时间 (用于控制蛇的移动)
+    float mAccumulatedTime = 0.0f;
 };
 
 #endif
