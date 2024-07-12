@@ -26,10 +26,20 @@ Game::Game() : font(nullptr), mScreenWidth(WINDOW_WIDTH), mScreenHeight(WINDOW_H
     if (font == nullptr)
     {
         std::cerr << "字体加载失败: " << TTF_GetError() << std::endl;
-        // 清理 SDL (因为 SDL 初始化成功了)
+        // 清理 SDL
         closeSDL();
         //  可以 choice 抛出异常或退出程序
         throw std::runtime_error("字体加载失败");
+    }
+    // 加载音乐
+    mBackgroundMusic = Mix_LoadMUS("bgm.mp3");
+    if (mBackgroundMusic == nullptr)
+    {
+        std::cerr << "背景音乐加载失败: " << Mix_GetError() << std::endl;
+        // 处理错误
+        closeSDL();
+        //  可以 choice 抛出异常或退出程序
+        throw std::runtime_error("音乐加载失败");
     }
     // 计算游戏区域大小
     mGameBoardWidth = mScreenWidth - mInstructionWidth;
@@ -60,7 +70,15 @@ bool Game::initSDL()
         SDL_Quit(); //  如果 SDL_ttf 初始化失败，则需要关闭 SDL
         return false;
     }
-
+    // 初始化 SDL_mixer
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0)
+    {
+        std::cerr << "SDL_mixer 初始化失败: " << Mix_GetError() << std::endl;
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
+        return false;
+    }
     //  创建窗口
     window = SDL_CreateWindow("Snake Game", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                               mScreenWidth, mScreenHeight, SDL_WINDOW_SHOWN);
@@ -113,7 +131,15 @@ void Game::closeSDL()
 
     // 退出 SDL_ttf
     TTF_Quit();
+    // Stop the music
+    Mix_HaltMusic();
 
+    // Free the music
+    Mix_FreeMusic(mBackgroundMusic);
+    mBackgroundMusic = nullptr;
+
+    // Quit SDL_mixer
+    Mix_Quit();
     // 退出 SDL
     SDL_Quit();
 }
@@ -415,12 +441,29 @@ void Game::createRamdomFood()
     int foodX, foodY;
     do
     {
-        // 使用常量 GRID_SIZE
         foodX = rand() % (mGameBoardWidth / GRID_SIZE - 2) + 1;
         foodY = rand() % (mGameBoardHeight / GRID_SIZE - 2) + 1;
     } while (mPtrSnake->isPartOfSnake(foodX, foodY));
 
     mFood = SnakeBody(foodX, foodY);
+
+    // 随机选择食物类型
+    int foodType = rand() % 4; //  生成 0 到 3 之间的随机数
+    switch (foodType)
+    {
+    case 0:
+        mFood.setFoodType(FoodType::Normal);
+        break;
+    case 1:
+        mFood.setFoodType(FoodType::SpeedUp);
+        break;
+    case 2:
+        mFood.setFoodType(FoodType::SlowDown);
+        break;
+    case 3:
+        mFood.setFoodType(FoodType::DoublePoints);
+        break;
+    }
 }
 // 渲染食物
 void Game::renderFood() const
@@ -430,10 +473,26 @@ void Game::renderFood() const
         mFood.getY() * GRID_SIZE,
         GRID_SIZE,
         GRID_SIZE};
-    SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF); // 红色
+
+    // 根据食物类型设置颜色
+    switch (mFood.getFoodType())
+    {
+    case FoodType::Normal:
+        SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF); //  红色
+        break;
+    case FoodType::SpeedUp:
+        SDL_SetRenderDrawColor(renderer, 0x3F, 0x3F, 0xFF, 0xFF); // 较亮的蓝色
+        break;
+    case FoodType::SlowDown:
+        SDL_SetRenderDrawColor(renderer, 0x80, 0x00, 0x80, 0xFF); // 紫色 (较浅)
+        break;
+    case FoodType::DoublePoints:
+        SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0x00, 0xFF); //  黄色
+        break;
+    }
+
     SDL_RenderFillRect(renderer, &foodRect);
 }
-
 // 渲染蛇
 void Game::renderSnake() const
 {
@@ -544,6 +603,11 @@ void Game::runGame()
     renderInstructionBoard();
     renderLeaderBoard();
     SDL_SetRenderTarget(renderer, nullptr);
+    // Start playing background music
+    if (Mix_PlayMusic(mBackgroundMusic, -1) == -1)
+    {
+        SDL_Log("Failed to play background music! SDL_mixer Error: %s\n", Mix_GetError());
+    }
 
     // 游戏主循环
     while (isRunning)
@@ -576,7 +640,42 @@ void Game::runGame()
                     // 检查蛇是否吃到了食物
                     if (moveSuccess)
                     {
-                        mPoints++;
+                        switch (mFood.getFoodType())
+                        {
+                        case FoodType::Normal:
+                            mPoints++;
+                            break;
+                        case FoodType::SpeedUp:
+                        {
+                            float originalSpeed = mPtrSnake->getSpeed();
+                            mPtrSnake->setSpeed(originalSpeed + 5.0f); //  增加速度 5.0f
+                            speedUpTimer = 10.0f;                      //  设置加速持续时间为 10 秒
+                            speedUpOriginalSpeed = originalSpeed;      //  保存原始速度
+                            break;
+                        }
+                        case FoodType::SlowDown:
+                        {
+                            float originalSpeed = mPtrSnake->getSpeed();
+                            mPtrSnake->setSpeed(originalSpeed * 0.8f); //  降低速度为原来的 0.8 倍
+                            slowDownTimer = 10.0f;                     //  设置减速持续时间为 10 秒
+                            slowDownOriginalSpeed = originalSpeed;     //  保存原始速度
+                            break;
+                        }
+                        case FoodType::DoublePoints:
+                            doublePointsTimer = 10.0f; //  设置得分翻倍持续时间为 10 秒
+                            break;
+                        }
+
+                        //  如果得分翻倍，则获得 2 分
+                        if (doublePointsTimer > 0.0f)
+                        {
+                            mPoints += 2;
+                        }
+                        else
+                        {
+                            mPoints++;
+                        }
+
                         adjustDelay();
                         createRamdomFood();
                         // 蛇感知食物
@@ -615,6 +714,33 @@ void Game::runGame()
         if (sleepTime > 0)
         {
             SDL_Delay(static_cast<Uint32>(sleepTime * 1000.0f));
+        }
+        // 更新加速计时器
+        if (speedUpTimer > 0.0f)
+        {
+            speedUpTimer -= deltaTime;
+            if (speedUpTimer <= 0.0f)
+            {
+                // 加速效果结束，恢复原始速度
+                mPtrSnake->setSpeed(speedUpOriginalSpeed);
+            }
+        }
+
+        // 更新减速计时器
+        if (slowDownTimer > 0.0f)
+        {
+            slowDownTimer -= deltaTime;
+            if (slowDownTimer <= 0.0f)
+            {
+                // 减速效果结束，恢复原始速度
+                mPtrSnake->setSpeed(slowDownOriginalSpeed);
+            }
+        }
+
+        // 更新得分翻倍计时器
+        if (doublePointsTimer > 0.0f)
+        {
+            doublePointsTimer -= deltaTime;
         }
     }
 

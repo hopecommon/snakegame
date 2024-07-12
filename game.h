@@ -9,6 +9,7 @@
 #include "snake.h"
 #include "constants.h"
 #include <SDL2/SDL_ttf.h> // 包含 SDL_ttf 头文件
+#include <SDL2/SDL_mixer.h>
 
 // 游戏类，负责游戏逻辑的运行和控制
 class Game
@@ -53,6 +54,13 @@ public:
 private:
   // 字体
   TTF_Font *font;
+  // 音乐
+  Mix_Music *mBackgroundMusic;
+  float speedUpTimer = 0.0f;          // 加速计时器
+  float speedUpOriginalSpeed = 0.0f;  // 加速前的原始速度
+  float slowDownTimer = 0.0f;         // 减速计时器
+  float slowDownOriginalSpeed = 0.0f; // 减速前的原始速度
+  float doublePointsTimer = 0.0f;     // 得分翻倍计时器
   // 屏幕宽度和高度
   int mScreenWidth;
   int mScreenHeight;

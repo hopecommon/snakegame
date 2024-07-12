@@ -321,3 +321,13 @@ void Snake::setSpeed(float speed)
 {
     mSpeed = speed;
 }
+
+void SnakeBody::setFoodType(FoodType type)
+{
+    mFoodType = type;
+}
+
+FoodType SnakeBody::getFoodType() const
+{
+    return mFoodType;
+}

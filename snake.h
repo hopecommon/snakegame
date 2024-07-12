@@ -13,6 +13,14 @@ enum class Direction
     None = 4,
 };
 
+enum class FoodType
+{
+    Normal,
+    SpeedUp,
+    SlowDown,
+    DoublePoints
+};
+
 // 蛇身体部位类
 class SnakeBody
 {
@@ -27,12 +35,19 @@ public:
     int getY() const;
     // 重载 == 运算符，用于比较两个蛇身体部位是否相同
     bool operator==(const SnakeBody &snakeBody) const;
+    // 设置食物类型
+    void setFoodType(FoodType type);
+
+    // 获取食物类型
+    FoodType getFoodType() const;
 
 private:
     // 蛇身体部位的横坐标
     int mX;
     // 蛇身体部位的纵坐标
     int mY;
+    // 食物类型
+    FoodType mFoodType;
 };
 
 // 蛇类，负责蛇的逻辑实现
