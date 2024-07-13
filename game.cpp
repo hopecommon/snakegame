@@ -520,57 +520,100 @@ void Game::handleEvents()
         switch (e.type)
         {
         case SDL_QUIT:
-            isRunning = false; // 设置 isRunning 为 false，退出游戏循环
+            isRunning = false;
             break;
         case SDL_KEYDOWN:
-
             switch (e.key.keysym.sym)
             {
             case SDLK_UP:
             case SDLK_w:
-                // lastDirection = Direction::Up;
-                mPtrSnake->changeDirection(Direction::Up);
+                addDirectionToQueue(Direction::Up);
                 break;
             case SDLK_DOWN:
             case SDLK_s:
-                // lastDirection = Direction::Down;
-                mPtrSnake->changeDirection(Direction::Down);
+                addDirectionToQueue(Direction::Down);
                 break;
             case SDLK_LEFT:
             case SDLK_a:
-                // lastDirection = Direction::Left;
-                mPtrSnake->changeDirection(Direction::Left);
+                addDirectionToQueue(Direction::Left);
                 break;
             case SDLK_RIGHT:
             case SDLK_d:
-                // lastDirection = Direction::Right;
-                mPtrSnake->changeDirection(Direction::Right);
+                addDirectionToQueue(Direction::Right);
                 break;
             case SDLK_ESCAPE:
             case SDLK_SPACE:
             case SDLK_p:
-                if (mPtrSnake->getDirection() == Direction::None)
-                {
-                    //  如果游戏处于暂停状态，则恢复游戏
-                    mPtrSnake->changeDirection(lastDirection); //  恢复之前的移动方向
-                }
-                else
-                {
-                    //  如果游戏正在运行，则暂停游戏
-                    lastDirection = mPtrSnake->getDirection(); //  保存之前的移动方向
-                    mPtrSnake->changeDirection(Direction::None);
-                }
+                togglePause();
                 break;
             default:
-                break; // 忽略其他按键
+                break;
             }
-            // keyPressed = true; // 记录按键已经被按下
             break;
-        // case SDL_KEYUP:
-        //     keyPressed = false; // 记录按键已经被释放
-        //     break;
         default:
-            break; // 忽略其他事件
+            break;
+        }
+    }
+}
+
+void Game::addDirectionToQueue(Direction newDirection)
+{
+    if (mDirectionQueue.size() < MAX_QUEUE_SIZE && isValidDirection(newDirection))
+    {
+        mDirectionQueue.push(newDirection);
+    }
+}
+
+bool Game::isValidDirection(Direction newDirection)
+{
+    if (mDirectionQueue.empty())
+    {
+        return newDirection != getOppositeDirection(mCurrentDirection);
+    }
+    return newDirection != getOppositeDirection(mDirectionQueue.back());
+}
+
+Direction Game::getOppositeDirection(Direction dir)
+{
+    switch (dir)
+    {
+    case Direction::Up:
+        return Direction::Down;
+    case Direction::Down:
+        return Direction::Up;
+    case Direction::Left:
+        return Direction::Right;
+    case Direction::Right:
+        return Direction::Left;
+    default:
+        return Direction::None;
+    }
+}
+
+void Game::togglePause()
+{
+    if (mPtrSnake->getDirection() == Direction::None)
+    {
+        mPtrSnake->changeDirection(mCurrentDirection);
+    }
+    else
+    {
+        mCurrentDirection = mPtrSnake->getDirection();
+        mPtrSnake->changeDirection(Direction::None);
+    }
+}
+
+void Game::updateSnakeDirection()
+{
+    if (!mDirectionQueue.empty())
+    {
+        Direction newDirection = mDirectionQueue.front();
+        mDirectionQueue.pop();
+
+        if (isValidDirection(newDirection))
+        {
+            mPtrSnake->changeDirection(newDirection);
+            mCurrentDirection = newDirection;
         }
     }
 }
@@ -624,7 +667,7 @@ void Game::runGame()
         if (std::chrono::duration<float>(currentFrameTime - lastLogicUpdateTime).count() >= 0.05f)
         {
             lastLogicUpdateTime = currentFrameTime;
-
+            updateSnakeDirection(); // Add this line to update the snake's direction
             mPtrSnake->update(deltaTime);
 
             // 检查是否需要移动蛇

@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h> //  替换 ncurses.h
 #include <string>
 #include <vector>
+#include <queue>
 #include <memory>
 
 #include "snake.h"
@@ -56,6 +57,16 @@ private:
   TTF_Font *font;
   // 音乐
   Mix_Music *mBackgroundMusic;
+
+  std::queue<Direction> mDirectionQueue;
+  const int MAX_QUEUE_SIZE = 3; // Maximum number of buffered inputs
+  Direction mCurrentDirection;
+  void addDirectionToQueue(Direction newDirection);
+  bool isValidDirection(Direction newDirection);
+  Direction getOppositeDirection(Direction dir);
+  void togglePause();
+  void updateSnakeDirection();
+
   float speedUpTimer = 0.0f;          // 加速计时器
   float speedUpOriginalSpeed = 0.0f;  // 加速前的原始速度
   float slowDownTimer = 0.0f;         // 减速计时器
