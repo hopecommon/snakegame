@@ -249,68 +249,6 @@ void Game::renderLeaderBoard() const
     }
 }
 
-// 渲染游戏结束界面，并询问玩家是否重新开始游戏
-// bool Game::renderRestartMenu()
-// {
-//     // 使用 SDL_ttf 渲染文字和按钮
-//     // 创建一个半透明的黑色覆盖层
-//     SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xCC);
-//     SDL_Rect overlayRect = {0, 0, mScreenWidth, mScreenHeight};
-//     SDL_RenderFillRect(renderer, &overlayRect);
-
-//     SDL_Color textColor = {255, 255, 255, 255};
-//     // 使用百分比计算文本位置
-//     int centerX = mScreenWidth / 2;
-//     int centerY = mScreenHeight / 2;
-
-//     // 渲染 "Game Over"
-//     renderText("Game Over", centerX - getTextWidth("Game Over") / 2, centerY - 0.1 * mScreenHeight, textColor);
-
-//     // 渲染最终得分
-//     std::string scoreText = "Your Final Score: " + std::to_string(mPoints);
-//     renderText(scoreText, centerX - getTextWidth(scoreText) / 2, centerY, textColor);
-
-//     // 渲染 "Restart" 按钮
-//     renderText("Restart (R)", centerX - getTextWidth("Restart (R)") / 2, centerY + 0.1 * mScreenHeight, textColor);
-
-//     // 渲染 "Quit" 按钮
-//     renderText("Quit (Q)", centerX - getTextWidth("Quit (Q)") / 2, centerY + 0.2 * mScreenHeight, textColor);
-
-//     // 更新屏幕以显示菜单
-//     SDL_RenderPresent(renderer);
-
-//     // 处理玩家输入
-//     SDL_Event e;
-//     bool keepWaiting = true;
-//     while (keepWaiting)
-//     {
-//         //  将内层 while 循环改为 if 语句
-//         if (SDL_PollEvent(&e) != 0)
-//         {
-//             if (e.type == SDL_QUIT)
-//             {
-//                 isRunning = false;
-//                 return false;
-//             }
-//             if (e.type == SDL_KEYDOWN)
-//             {
-//                 switch (e.key.keysym.sym)
-//                 {
-//                 case SDLK_r:
-//                     keepWaiting = false;
-//                     isRunning = true;
-//                     return true; // 玩家选择重新开始
-//                 case SDLK_q:
-//                     keepWaiting = false;
-//                     return false; // 玩家选择退出
-//                 }
-//             }
-//         }
-//         SDL_Delay(10); // 防止 CPU 占用过高
-//     }
-//     return false;
-// }
-
 bool Game::renderRestartMenu()
 {
     // 定义菜单选项
