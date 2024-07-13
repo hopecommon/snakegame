@@ -3,6 +3,25 @@
 
 #include <vector>
 #include "constants.h"
+
+enum class GameMode
+{
+    Bounded,
+    Unbounded
+};
+
+enum class Difficulty
+{
+    Easy,
+    Hard
+};
+
+enum class MapType
+{
+    Empty,
+    Obstacles,
+};
+
 // 蛇的移动方向枚举
 enum class Direction
 {
@@ -57,31 +76,31 @@ public:
     // 构造函数，初始化蛇的初始位置和方向
     // Snake();
     Snake(int gameBoardWidth, int gameBoardHeight, int initialSnakeLength);
+    Snake(int gameBoardWidth, int gameBoardHeight, int initialSnakeLength, GameMode mode);
     // 设置随机数种子
     void setRandomSeed();
     // 初始化蛇
     void initializeSnake();
     // 判断给定坐标点是否在蛇的身体上
-    bool isPartOfSnake(int x, int y) const; //  添加 const
-    // 让蛇感知到食物的位置
-    void senseFood(const SnakeBody &food); //  参数改为 const 引用
+    bool isPartOfSnake(int x, int y) const;
+    void senseFood(const SnakeBody &food);
     // 判断蛇是否接触到食物
-    bool touchFood() const; //  添加 const
+    bool touchFood() const;
     // 判断蛇是否撞到墙壁
-    bool hitWall() const; //  添加 const
+    bool hitWall();
     // 判断蛇是否撞到自身
-    bool hitSelf() const; //  添加 const
+    bool hitSelf() const;
     // 检查蛇是否发生碰撞
-    bool checkCollision() const; //  添加 const
+    bool checkCollision();
 
     // 改变蛇的移动方向
     bool changeDirection(Direction newDirection);
     // 获取蛇的身体部位列表
-    const std::vector<SnakeBody> &getSnake() const; //  返回 const 引用
+    const std::vector<SnakeBody> &getSnake() const;
     // 获取蛇的长度
-    int getLength() const; //  添加 const
+    int getLength() const;
     // 生成蛇头的下一个位置
-    SnakeBody createNewHead() const; //  添加 const
+    SnakeBody createNewHead() const;
     // 移动蛇
     bool moveFoward();
     // 更新蛇的位置 (根据时间)
@@ -95,6 +114,7 @@ public:
     void resetAccumulatedTime();
     Direction getDirection() const;
     void setSpeed(float speed);
+    std::vector<SnakeBody> getSnakebody();
 
 private:
     // 游戏区域宽度
@@ -114,6 +134,8 @@ private:
 
     // 累积时间 (用于控制蛇的移动)
     float mAccumulatedTime = 0.0f;
+
+    GameMode gameMode;
 };
 
 #endif

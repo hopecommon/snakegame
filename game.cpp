@@ -28,7 +28,6 @@ Game::Game() : font(nullptr), mScreenWidth(WINDOW_WIDTH), mScreenHeight(WINDOW_H
         std::cerr << "字体加载失败: " << TTF_GetError() << std::endl;
         // 清理 SDL
         closeSDL();
-        //  可以 choice 抛出异常或退出程序
         throw std::runtime_error("字体加载失败");
     }
     // 加载音乐
@@ -38,7 +37,6 @@ Game::Game() : font(nullptr), mScreenWidth(WINDOW_WIDTH), mScreenHeight(WINDOW_H
         std::cerr << "背景音乐加载失败: " << Mix_GetError() << std::endl;
         // 处理错误
         closeSDL();
-        //  可以 choice 抛出异常或退出程序
         throw std::runtime_error("音乐加载失败");
     }
     // 计算游戏区域大小
@@ -95,9 +93,9 @@ bool Game::initSDL()
     if (renderer == nullptr)
     {
         std::cerr << "渲染器创建失败: " << SDL_GetError() << std::endl;
-        SDL_DestroyWindow(window); //  如果渲染器创建失败，则需要销毁窗口
-        TTF_Quit();                //  如果渲染器创建失败，则需要关闭 SDL_ttf
-        SDL_Quit();                //  如果渲染器创建失败，则需要关闭 SDL
+        SDL_DestroyWindow(window);
+        TTF_Quit();
+        SDL_Quit();
         return false;
     }
 
@@ -217,7 +215,7 @@ void Game::renderInstructionBoard() const
 
     renderText("Right / D", x, y, textColor);
     y += ySpacing;
-    renderText("Pause: P/Space", x, y, textColor);
+    renderText("Pause: Space", x, y, textColor);
     y += ySpacing;
 }
 //  辅助函数：获取文字宽度
@@ -248,7 +246,236 @@ void Game::renderLeaderBoard() const
         y += ySpacing;
     }
 }
+// 处理开始菜单按键事件
+void Game::handleStartMenuEvents(const SDL_Event &e)
+{
+    switch (e.key.keysym.sym)
+    {
+    case SDLK_UP:
+        selectedOption = (selectedOption - 1 + 4) % 4; // 循环选择选项，包括 "Start Game"
+        break;
+    case SDLK_DOWN:
+        selectedOption = (selectedOption + 1) % 4; // 循环选择选项，包括 "Start Game"
+        break;
+    case SDLK_LEFT:
+        switch (selectedOption)
+        {
+        case 0: // 游戏模式
+            gameMode = GameMode::Bounded;
+            break;
+        case 1: // 游戏难度
+            difficulty = Difficulty::Easy;
+            break;
+        case 2:                       // 地图类型
+            mapType = MapType::Empty; //  直接设置为 Empty
+            break;
+        }
+        break;
+    case SDLK_RIGHT:
+        switch (selectedOption)
+        {
+        case 0: // 游戏模式
+            gameMode = GameMode::Unbounded;
+            break;
+        case 1: // 游戏难度
+            difficulty = Difficulty::Hard;
+            break;
+        case 2:                           // 地图类型
+            mapType = MapType::Obstacles; //  直接设置为 Obstacles
+            break;
+        }
+        break;
+    case SDLK_RETURN:
+        if (selectedOption == 3)
+        { // 开始游戏
+            isStartMenu = false;
+            initializeGame(); // 在开始游戏时才初始化游戏
+        }
+        break;
+    }
+    renderStartMenu(); // 重新渲染菜单界面
+}
 
+void Game::handleEvents()
+{
+    SDL_Event e;
+    while (SDL_PollEvent(&e) != 0)
+    {
+        switch (e.type)
+        {
+        case SDLK_ESCAPE:
+        case SDL_QUIT:
+            isRunning = false;
+            break;
+        case SDL_KEYDOWN:
+            if (isStartMenu)
+            {
+                handleStartMenuEvents(e); // 处理开始菜单按键事件
+            }
+            else
+            {
+                switch (e.key.keysym.sym)
+                {
+                case SDLK_UP:
+                case SDLK_w:
+                    addDirectionToQueue(Direction::Up);
+                    break;
+                case SDLK_DOWN:
+                case SDLK_s:
+                    addDirectionToQueue(Direction::Down);
+                    break;
+                case SDLK_LEFT:
+                case SDLK_a:
+                    addDirectionToQueue(Direction::Left);
+                    break;
+                case SDLK_RIGHT:
+                case SDLK_d:
+                    addDirectionToQueue(Direction::Right);
+                    break;
+                case SDLK_SPACE:
+                    togglePause();
+                    break;
+                default:
+                    break;
+                }
+            }
+            break;
+        default:
+            break;
+        }
+    }
+}
+//  获取游戏模式字符串
+std::string Game::getGameModeString(GameMode mode) const
+{
+    switch (mode)
+    {
+    case GameMode::Bounded:
+        return "Bounded";
+    case GameMode::Unbounded:
+        return "Unbounded";
+    default:
+        return "Unknown";
+    }
+}
+
+//  获取游戏难度字符串
+std::string Game::getDifficultyString(Difficulty diff) const
+{
+    switch (diff)
+    {
+    case Difficulty::Easy:
+        return "Easy";
+    case Difficulty::Hard:
+        return "Hard";
+    default:
+        return "Unknown";
+    }
+}
+
+//  获取地图类型字符串
+std::string Game::getMapTypeString(MapType type) const
+{
+    switch (type)
+    {
+    case MapType::Empty:
+        return "Empty";
+    case MapType::Obstacles:
+        return "Obstacles"; //  修改地图类型名称
+    default:
+        return "Unknown";
+    }
+}
+
+// 渲染居中显示的文本
+void Game::renderCenteredText(const std::string &text, float xPercent, float yPercent, SDL_Color color) const
+{
+    int x = static_cast<int>(mScreenWidth * xPercent);  //  将百分比转换为像素坐标
+    int y = static_cast<int>(mScreenHeight * yPercent); //  将百分比转换为像素坐标
+
+    SDL_Surface *surface = TTF_RenderText_Solid(font, text.c_str(), color);
+    if (surface == nullptr)
+    {
+        std::cerr << "无法创建文本曲面: " << TTF_GetError() << std::endl;
+        return;
+    }
+
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (texture == nullptr)
+    {
+        std::cerr << "无法创建文本纹理: " << SDL_GetError() << std::endl;
+        SDL_FreeSurface(surface);
+        return;
+    }
+
+    SDL_Rect dstRect = {x - surface->w / 2, y - surface->h / 2, surface->w, surface->h}; // 居中
+    SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
+
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+// 颜色定义
+SDL_Color textColor = {255, 255, 255, 255};      // 白色
+SDL_Color selectedColor = {0, 255, 0, 255};      // 绿色
+SDL_Color highlightColor = {255, 255, 0, 255};   // 黄色
+SDL_Color selectedRowBgColor = {0, 100, 0, 255}; // 深绿色
+void Game::renderStartMenu()
+{
+    // 1. 渲染背景
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // 设置背景颜色 (黑色)
+    SDL_RenderClear(renderer);                                // 清空渲染器
+
+    // 2. 渲染标题
+    renderCenteredText("Snake Game", 0.5f, 0.25f, textColor); // 水平垂直居中
+
+    // 3. 渲染菜单选项
+    float optionY = 0.5f;         // 第一个选项的纵坐标 (屏幕高度的 50%)
+    float optionSpacing = 0.075f; // 选项间距 (屏幕高度的 7.5%)
+
+    // 游戏模式
+    renderText("Game Mode:", 0.25f * mScreenWidth, optionY * mScreenHeight, textColor);
+    renderStartMenuOption("Bounded", 0.5f, optionY, gameMode == GameMode::Bounded, selectedOption == 0);
+    renderStartMenuOption("Unbounded", 0.75f, optionY, gameMode == GameMode::Unbounded, selectedOption == 0);
+    optionY += optionSpacing;
+
+    // 游戏难度
+    renderText("Difficulty:", 0.25f * mScreenWidth, optionY * mScreenHeight, textColor);
+    renderStartMenuOption("Easy", 0.5f, optionY, difficulty == Difficulty::Easy, selectedOption == 1);
+    renderStartMenuOption("Hard", 0.75f, optionY, difficulty == Difficulty::Hard, selectedOption == 1);
+    optionY += optionSpacing;
+
+    // 地图类型
+    renderText("Map Type:", 0.25f * mScreenWidth, optionY * mScreenHeight, textColor);
+    renderStartMenuOption("Empty", 0.5f, optionY, mapType == MapType::Empty, selectedOption == 2);
+    renderStartMenuOption("Obstacles", 0.75f, optionY, mapType == MapType::Obstacles, selectedOption == 2);
+    optionY += optionSpacing;
+
+    // 开始游戏
+    renderCenteredText("Start Game", 0.5f, optionY, (selectedOption == 3) ? highlightColor : textColor);
+
+    // 4. 更新屏幕
+    SDL_RenderPresent(renderer);
+}
+
+// 渲染单个菜单选项
+void Game::renderStartMenuOption(const std::string &text, float xPercent, float yPercent, bool isSelected, bool isCurrent)
+{
+    int x = static_cast<int>(mScreenWidth * xPercent);
+    int y = static_cast<int>(mScreenHeight * yPercent);
+
+    SDL_Color color = (isSelected) ? highlightColor : textColor; //  已选选项为黄色，未选选项为白色
+
+    if (isCurrent)
+    { //  当前选中的选项，添加箭头
+        renderCenteredText(">>" + text + "<<", xPercent, yPercent, color);
+    }
+    else
+    {
+        renderCenteredText(text, xPercent, yPercent, color);
+    }
+}
+
+// 渲染游戏结束界面，并询问玩家是否重新开始游戏
 bool Game::renderRestartMenu()
 {
     // 定义菜单选项
@@ -357,20 +584,52 @@ void Game::renderDifficulty() const
 // 初始化游戏
 void Game::initializeGame()
 {
+    // // 清空障碍物列表
+    obstacles.clear();
+
     // 分配内存创建新的蛇对象
-    this->mPtrSnake.reset(new Snake(this->mGameBoardWidth, this->mGameBoardHeight, this->mInitialSnakeLength));
+    this->mPtrSnake.reset(new Snake(this->mGameBoardWidth, this->mGameBoardHeight, this->mInitialSnakeLength, this->gameMode));
     this->mPtrSnake->initializeSnake(); // 初始化蛇
+
+    // 根据难度设置蛇的初始速度
+    switch (difficulty)
+    {
+    case Difficulty::Easy:
+        mPtrSnake->setSpeed(15.0f);
+        break;
+    case Difficulty::Hard:
+        mPtrSnake->setSpeed(30.0f);
+        break;
+    }
+    // 根据地图类型设置障碍物
+
+    switch (mapType)
+    {
+    case MapType::Empty:
+        // obstacles.clear();
+        break;
+    case MapType::Obstacles:
+        //  添加障碍物
+        for (int i = 0; i < 5; i++)
+        {
+            obstacles.push_back(SnakeBody(5, i));
+        }
+        obstacles.push_back(SnakeBody(10, 15));
+        // ... 添加更多障碍物
+        break;
+    }
     // 初始化游戏得分
     this->mPoints = 0;
-    this->renderPoints(); // 渲染得分
     // 在随机位置生成食物
     this->createRamdomFood();
-    this->renderFood(); // 渲染食物
     // 让蛇感知到食物
     this->mPtrSnake->senseFood(this->mFood);
     // 其他初始化操作
     this->mDelay = this->mBaseDelay;
     this->renderDifficulty(); // 渲染难度
+    this->renderPoints();     // 渲染得分
+    this->renderFood();       // 渲染食物
+    renderObstacles();
 }
 
 // 创建随机食物
@@ -403,6 +662,19 @@ void Game::createRamdomFood()
         break;
     }
 }
+void Game::renderObstacles() const
+{
+    SDL_SetRenderDrawColor(renderer, 0x80, 0x80, 0x80, 0xFF); // 设置障碍物颜色 (灰色)
+    for (const auto &obstacle : obstacles)
+    {
+        SDL_Rect obstacleRect = {
+            obstacle.getX() * GRID_SIZE,
+            obstacle.getY() * GRID_SIZE,
+            GRID_SIZE,
+            GRID_SIZE};
+        SDL_RenderFillRect(renderer, &obstacleRect);
+    }
+}
 // 渲染食物
 void Game::renderFood() const
 {
@@ -419,10 +691,10 @@ void Game::renderFood() const
         SDL_SetRenderDrawColor(renderer, 0xFF, 0x00, 0x00, 0xFF); //  红色
         break;
     case FoodType::SpeedUp:
-        SDL_SetRenderDrawColor(renderer, 0x3F, 0x3F, 0xFF, 0xFF); // 较亮的蓝色
+        SDL_SetRenderDrawColor(renderer, 135, 206, 235, 255); // 天蓝色
         break;
     case FoodType::SlowDown:
-        SDL_SetRenderDrawColor(renderer, 0x80, 0x00, 0x80, 0xFF); // 紫色 (较浅)
+        SDL_SetRenderDrawColor(renderer, 221, 160, 221, 255); // 亮紫色
         break;
     case FoodType::DoublePoints:
         SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0x00, 0xFF); //  黄色
@@ -447,50 +719,6 @@ void Game::renderSnake() const
             GRID_SIZE,
             GRID_SIZE};
         SDL_RenderFillRect(renderer, &snakePartRect);
-    }
-}
-
-void Game::handleEvents()
-{
-    SDL_Event e;
-    while (SDL_PollEvent(&e) != 0)
-    {
-        switch (e.type)
-        {
-        case SDL_QUIT:
-            isRunning = false;
-            break;
-        case SDL_KEYDOWN:
-            switch (e.key.keysym.sym)
-            {
-            case SDLK_UP:
-            case SDLK_w:
-                addDirectionToQueue(Direction::Up);
-                break;
-            case SDLK_DOWN:
-            case SDLK_s:
-                addDirectionToQueue(Direction::Down);
-                break;
-            case SDLK_LEFT:
-            case SDLK_a:
-                addDirectionToQueue(Direction::Left);
-                break;
-            case SDLK_RIGHT:
-            case SDLK_d:
-                addDirectionToQueue(Direction::Right);
-                break;
-            case SDLK_ESCAPE:
-            case SDLK_SPACE:
-            case SDLK_p:
-                togglePause();
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-        }
     }
 }
 
@@ -589,7 +817,9 @@ void Game::runGame()
     {
         SDL_Log("Failed to play background music! SDL_mixer Error: %s\n", Mix_GetError());
     }
-
+    // 显示开始菜单
+    isStartMenu = true;
+    renderStartMenu();
     // 游戏主循环
     while (isRunning)
     {
@@ -600,8 +830,12 @@ void Game::runGame()
 
         // 2. 处理键盘输入
         handleEvents();
-
-        // 3. 更新游戏逻辑 (每秒 20 次)
+        // 3. 如果在开始菜单界面，则不进行游戏逻辑更新和渲染
+        if (isStartMenu)
+        {
+            continue; //  直接进入下一轮循环
+        }
+        // 4. 更新游戏逻辑 (每秒 20 次)
         if (std::chrono::duration<float>(currentFrameTime - lastLogicUpdateTime).count() >= 0.05f)
         {
             lastLogicUpdateTime = currentFrameTime;
@@ -669,11 +903,20 @@ void Game::runGame()
                         isRunning = false;
                         break; // 游戏结束
                     }
+                    // 检查与障碍物的碰撞
+                    for (const auto &obstacle : obstacles)
+                    {
+                        if (mPtrSnake->getSnakebody()[0] == obstacle)
+                        {
+                            isRunning = false;
+                            break; // 游戏结束
+                        }
+                    }
                 }
             }
         }
 
-        // 4. 渲染游戏画面
+        // 5. 渲染游戏画面
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // 设置背景颜色 (黑色)
         SDL_RenderClear(renderer);                                // 清空渲染器
 
@@ -681,15 +924,16 @@ void Game::runGame()
         SDL_RenderCopy(renderer, staticElementsTexture, nullptr, nullptr);
 
         // 只渲染动态元素
+        renderObstacles();
         renderSnake();
         renderFood();
         renderPoints();
         renderDifficulty();
 
-        // 5. 更新屏幕
+        // 6. 更新屏幕
         SDL_RenderPresent(renderer);
 
-        // 6. 控制游戏速度 (目标帧率 60 FPS)
+        // 7. 控制游戏速度 (目标帧率 30 FPS)
         float targetFrameTime = 1.0f / 30.0f;
         float sleepTime = targetFrameTime - deltaTime;
         if (sleepTime > 0)
@@ -735,9 +979,6 @@ void Game::startGame()
     {
         // 加载排行榜
         readLeaderBoard();
-
-        // 初始化游戏
-        initializeGame();
 
         // 运行游戏
         runGame();

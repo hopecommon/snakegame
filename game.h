@@ -12,6 +12,14 @@
 #include <SDL2/SDL_ttf.h> // 包含 SDL_ttf 头文件
 #include <SDL2/SDL_mixer.h>
 
+enum class MenuOption
+{
+  GameMode,
+  Difficulty,
+  MapType,
+  StartGame
+};
+
 // 游戏类，负责游戏逻辑的运行和控制
 class Game
 {
@@ -25,7 +33,8 @@ public:
   bool initSDL();
   // 关闭 SDL
   void closeSDL();
-
+  // 开始菜单
+  void renderStartMenu();
   // 加载排行榜信息
   void loadLeadBoard();
   // 更新排行榜信息
@@ -44,7 +53,16 @@ public:
 
   // 创建随机食物
   void createRamdomFood();
+  void handleStartMenuEvents(const SDL_Event &e);
+  void renderStartMenuOption(const std::string &text, float xPercent, float yPercent, bool isSelected, bool isCurrent);
+  //  获取游戏模式字符串
+  std::string getGameModeString(GameMode mode) const;
 
+  //  获取游戏难度字符串
+  std::string getDifficultyString(Difficulty diff) const;
+
+  //  获取地图类型字符串
+  std::string getMapTypeString(MapType type) const;
   // 开始游戏
   void startGame();
   // 渲染游戏结束界面，并询问玩家是否重新开始游戏
@@ -57,6 +75,14 @@ private:
   TTF_Font *font;
   // 音乐
   Mix_Music *mBackgroundMusic;
+  SDL_Texture *staticElementsTexture;
+
+  GameMode gameMode = GameMode::Bounded;    //  游戏模式，默认为有边界模式
+  Difficulty difficulty = Difficulty::Easy; //  游戏难度，默认为简单模式
+  MapType mapType = MapType::Empty;         //  地图类型，默认为无障碍地图
+  bool isStartMenu = true;                  //  是否在开始菜单界面
+  int selectedOption = 0;                   //  当前选中的选项
+  std::vector<SnakeBody> obstacles;         //  障碍物列表
 
   std::queue<Direction> mDirectionQueue;
   const int MAX_QUEUE_SIZE = 3; // Maximum number of buffered inputs
@@ -114,6 +140,7 @@ private:
 
   // 渲染函数声明
   void renderText(const std::string &text, int x, int y, SDL_Color color) const;
+  void renderCenteredText(const std::string &text, float xPercent, float yPercent, SDL_Color color) const;
   int getTextWidth(const std::string &text) const;
   void renderGameBoard() const;
   void renderInformationBoard() const;
@@ -123,6 +150,7 @@ private:
   void renderSnake() const;
   void renderPoints() const;
   void renderDifficulty() const;
+  void renderObstacles() const;
 
   // 处理 SDL 事件
   void handleEvents();

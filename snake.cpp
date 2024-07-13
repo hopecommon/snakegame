@@ -27,7 +27,7 @@ int SnakeBody::getY() const
 }
 
 // 重载 == 运算符，用于比较两个蛇身体部位是否相同
-bool SnakeBody::operator==(const SnakeBody &snakeBody) const //  添加 const
+bool SnakeBody::operator==(const SnakeBody &snakeBody) const
 {
     // 比较两个 SnakeBody 对象的横坐标和纵坐标是否相同
     return (this->mX == snakeBody.mX) && (this->mY == snakeBody.mY);
@@ -38,6 +38,17 @@ Snake::Snake(int gameBoardWidth, int gameBoardHeight, int initialSnakeLength)
     : mGameBoardWidth(gameBoardWidth / GRID_SIZE),
       mGameBoardHeight(gameBoardHeight / GRID_SIZE),
       mInitialSnakeLength(initialSnakeLength)
+{
+    // 初始化蛇
+    this->initializeSnake();
+    // 设置随机数种子
+    this->setRandomSeed();
+}
+Snake::Snake(int gameBoardWidth, int gameBoardHeight, int initialSnakeLength, GameMode mode)
+    : mGameBoardWidth(gameBoardWidth / GRID_SIZE),
+      mGameBoardHeight(gameBoardHeight / GRID_SIZE),
+      mInitialSnakeLength(initialSnakeLength),
+      gameMode(mode)
 {
     // 初始化蛇
     this->initializeSnake();
@@ -69,7 +80,7 @@ void Snake::initializeSnake()
 }
 
 // 判断给定坐标点是否在蛇的身体上
-bool Snake::isPartOfSnake(int x, int y) const //  添加 const
+bool Snake::isPartOfSnake(int x, int y) const
 {
     // 遍历蛇的身体部分
     for (const auto &part : mSnake)
@@ -90,16 +101,40 @@ bool Snake::isPartOfSnake(int x, int y) const //  添加 const
  * 只有蛇头会撞到墙壁
  */
 // 判断蛇是否撞到墙壁
-bool Snake::hitWall() const
+bool Snake::hitWall()
 {
     // 获取蛇头的坐标
     int headX = mSnake[0].getX();
     int headY = mSnake[0].getY();
 
-    // 检查蛇头是否超出游戏板的边界
-    if (headX < 0 || headX >= mGameBoardWidth || headY < 0 || headY >= mGameBoardHeight)
+    if (gameMode == GameMode::Bounded)
     {
-        return true; // 蛇头撞到墙壁
+        // 检查蛇头是否超出游戏板的边界
+        if (headX < 0 || headX >= mGameBoardWidth || headY < 0 || headY >= mGameBoardHeight)
+        {
+            return true; // 蛇头撞到墙壁
+        }
+    }
+    else
+    { //  无边界模式
+        //  如果蛇头超出边界，则将其坐标调整到另一侧
+        if (headX < 0)
+        {
+            headX = mGameBoardWidth - 1;
+        }
+        else if (headX >= mGameBoardWidth)
+        {
+            headX = 0;
+        }
+        if (headY < 0)
+        {
+            headY = mGameBoardHeight - 1;
+        }
+        else if (headY >= mGameBoardHeight)
+        {
+            headY = 0;
+        }
+        mSnake[0] = SnakeBody(headX, headY); //  更新蛇头坐标
     }
 
     return false; // 蛇头没有撞到墙壁
@@ -109,9 +144,9 @@ bool Snake::hitWall() const
  * 蛇头与蛇身体重叠
  */
 // 判断蛇是否撞到自身
-bool Snake::hitSelf() const //  添加 const
+bool Snake::hitSelf() const
 {
-    // TODO 判断蛇是否撞到自身
+    // 判断蛇是否撞到自身
     // 获取蛇头的坐标
     int headX = mSnake[0].getX();
     int headY = mSnake[0].getY();
@@ -130,7 +165,7 @@ bool Snake::hitSelf() const //  添加 const
 }
 
 // 判断蛇是否接触到食物
-bool Snake::touchFood() const //  添加 const
+bool Snake::touchFood() const
 {
     // 获取蛇头的下一个位置
     SnakeBody newHead = this->createNewHead();
@@ -217,7 +252,7 @@ bool Snake::changeDirection(Direction newDirection)
 }
 
 // 生成蛇头的下一个位置
-SnakeBody Snake::createNewHead() const //  添加 const
+SnakeBody Snake::createNewHead() const
 {
     int headX = mSnake[0].getX();
     int headY = mSnake[0].getY();
@@ -271,7 +306,7 @@ bool Snake::moveFoward()
 }
 
 // 检查蛇是否发生碰撞
-bool Snake::checkCollision() const //  添加 const
+bool Snake::checkCollision()
 {
     // 如果蛇撞到墙壁或自身，则返回true，否则返回false
     if (this->hitWall() || this->hitSelf())
@@ -285,7 +320,7 @@ bool Snake::checkCollision() const //  添加 const
 }
 
 // 获取蛇的长度
-int Snake::getLength() const //  添加 const
+int Snake::getLength() const
 {
     return this->mSnake.size();
 }
@@ -330,4 +365,8 @@ void SnakeBody::setFoodType(FoodType type)
 FoodType SnakeBody::getFoodType() const
 {
     return mFoodType;
+}
+std::vector<SnakeBody> Snake::getSnakebody()
+{
+    return this->mSnake;
 }
