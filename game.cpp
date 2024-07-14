@@ -22,7 +22,7 @@ Game::Game() : font(nullptr), mScreenWidth(WINDOW_WIDTH), mScreenHeight(WINDOW_H
     }
 
     // 加载字体
-    font = TTF_OpenFont("arial.ttf", 20);
+    font = TTF_OpenFont("font.ttf", 20);
     if (font == nullptr)
     {
         std::cerr << "字体加载失败: " << TTF_GetError() << std::endl;
