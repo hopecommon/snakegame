@@ -610,11 +610,25 @@ void Game::initializeGame()
         break;
     case MapType::Obstacles:
         //  添加障碍物
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 10; i++)
         {
-            obstacles.push_back(SnakeBody(5, i));
+            obstacles.push_back(SnakeBody(9, i));
         }
-        obstacles.push_back(SnakeBody(10, 15));
+        //  添加障碍物
+        for (int i = 0; i < 15; i++)
+        {
+            obstacles.push_back(SnakeBody(9, 29 - i));
+        }
+        //  添加障碍物
+        for (int i = 0; i < 15; i++)
+        {
+            obstacles.push_back(SnakeBody(29, i));
+        }
+        //  添加障碍物
+        for (int i = 0; i < 10; i++)
+        {
+            obstacles.push_back(SnakeBody(29, 29 - i));
+        }
         // ... 添加更多障碍物
         break;
     }
