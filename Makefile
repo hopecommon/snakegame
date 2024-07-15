@@ -1,5 +1,5 @@
 snakegame: main.o game.o snake.o
-	g++ -o snakegame main.o game.o snake.o -lcurses -lSDL2 -lSDL2_ttf -lSDL2_mixer
+	g++ -o snakegame main.o game.o snake.o -lSDL2 -lSDL2_ttf -lSDL2_mixer
 main.o: main.cpp game.h
 	g++ -c main.cpp
 game.o: game.cpp snake.h constants.h
