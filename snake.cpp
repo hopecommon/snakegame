@@ -5,135 +5,101 @@
 
 #include "snake.h"
 
-// 蛇身体部位类
 SnakeBody::SnakeBody()
 {
 }
 
-// 蛇身体部位类构造函数，初始化蛇身体部位的坐标
 SnakeBody::SnakeBody(int x, int y) : mX(x), mY(y)
 {
 }
 
-// 获取蛇身体部位的横坐标
 int SnakeBody::getX() const
 {
     return mX;
 }
 
-// 获取蛇身体部位的纵坐标
 int SnakeBody::getY() const
 {
     return mY;
 }
 
-// 重载 == 运算符，用于比较两个蛇身体部位是否相同
 bool SnakeBody::operator==(const SnakeBody &snakeBody)
 {
-    // 比较两个 SnakeBody 对象的横坐标和纵坐标是否相同
-    return (this->mX == snakeBody.mX) && (this->mY == snakeBody.mY);
+    // TODO overload the == operator for SnakeBody comparision.
+    return (this->getX() == snakeBody.getX() && this->getY() == snakeBody.getY());
 }
 
-// 蛇类构造函数，初始化蛇的初始位置和方向
 Snake::Snake(int gameBoardWidth, int gameBoardHeight, int initialSnakeLength) : mGameBoardWidth(gameBoardWidth), mGameBoardHeight(gameBoardHeight), mInitialSnakeLength(initialSnakeLength)
 {
-    // 初始化蛇
     this->initializeSnake();
-    // 设置随机数种子
     this->setRandomSeed();
 }
 
-// 设置随机数种子
 void Snake::setRandomSeed()
 {
-    // 使用当前时间作为随机数种子
+    // use current time as seed for random generator
     std::srand(std::time(nullptr));
 }
 
-// 初始化蛇
 void Snake::initializeSnake()
 {
-    // 将蛇初始位置设置在游戏区域的中心
+    // Instead of using a random initialization algorithm
+    // We always put the snake at the center of the game mWindows
     int centerX = this->mGameBoardWidth / 2;
     int centerY = this->mGameBoardHeight / 2;
 
-    // 初始化蛇的身体部位
-    this->mSnake.resize(this->mInitialSnakeLength);
     for (int i = 0; i < this->mInitialSnakeLength; i++)
     {
-        this->mSnake[i] = SnakeBody(centerX, centerY + i);
+        this->mSnake.push_back(SnakeBody(centerX, centerY + i));
     }
-    // 设置蛇的初始方向为向上
     this->mDirection = Direction::Up;
 }
 
-// 判断给定坐标点是否在蛇的身体上
 bool Snake::isPartOfSnake(int x, int y)
 {
-    // 遍历蛇的身体部分
-    for (const auto &part : mSnake)
+    // TODO check if a given point with axis x, y is on the body of the snake.
+    SnakeBody point = SnakeBody(x, y);
+    for (int i = 0; i < this->mSnake.size(); i++)
     {
-        // 如果找到匹配的坐标，返回 true
-        if (part.getX() == x && part.getY() == y)
-        {
+        if (point == this->mSnake[i])
             return true;
-        }
     }
-    // 如果没有找到匹配的坐标，返回 false
     return false;
 }
 
 /*
- *
- * 假设：
- * 只有蛇头会撞到墙壁
+ * Assumption:
+ * Only the head would hit wall.
  */
-// 判断蛇是否撞到墙壁
 bool Snake::hitWall()
 {
-    // 获取蛇头的坐标
-    int headX = mSnake[0].getX();
-    int headY = mSnake[0].getY();
-
-    // 检查蛇头是否超出游戏板的边界
-    if (headX <= 1 || headX >= mGameBoardWidth - 2 || headY <= 1 || headY >= mGameBoardHeight - 2)
-    {
-        return true; // 蛇头撞到墙壁
-    }
-
-    return false; // 蛇头没有撞到墙壁
-}
-
-/*
- * 蛇头与蛇身体重叠
- */
-// 判断蛇是否撞到自身
-bool Snake::hitSelf()
-{
-    // TODO 判断蛇是否撞到自身
-    // 获取蛇头的坐标
-    int headX = mSnake[0].getX();
-    int headY = mSnake[0].getY();
-    // 遍历蛇的身体部分（从第二个开始）
-    for (size_t i = 1; i < mSnake.size(); ++i)
-    {
-        // 如果蛇头的坐标与身体的某个部分的坐标重叠，返回 true
-        if (headX == mSnake[i].getX() && headY == mSnake[i].getY())
-        {
-            return true;
-        }
-    }
-
-    // 如果没有重叠，返回 false
+    // TODO check if the snake has hit the wall
+    int headx = this->mSnake[0].getX();
+    int heady = this->mSnake[0].getY();
+    if (headx <= 0 || headx >= this->mGameBoardWidth - 1)
+        return true;
+    if (heady <= 0 || heady >= this->mGameBoardHeight - 1)
+        return true;
     return false;
 }
 
-// 判断蛇是否接触到食物
+/*
+ * The snake head is overlapping with its body
+ */
+bool Snake::hitSelf()
+{
+    // TODO check if the snake has hit itself.
+    for (int i = 1; i < this->mSnake.size(); i++)
+    {
+        if (this->mSnake[0] == this->mSnake[i])
+            return true;
+    }
+    return false;
+}
+
 bool Snake::touchFood()
 {
-    // 获取蛇头的下一个位置
     SnakeBody newHead = this->createNewHead();
-    // 判断蛇头下一个位置是否与食物重合
     if (this->mFood == newHead)
     {
         return true;
@@ -144,140 +110,142 @@ bool Snake::touchFood()
     }
 }
 
-// 让蛇感知到食物的位置
 void Snake::senseFood(SnakeBody food)
 {
     this->mFood = food;
 }
 
-// 获取蛇的身体部位列表
 std::vector<SnakeBody> &Snake::getSnake()
 {
     return this->mSnake;
 }
 
-// 改变蛇的移动方向
 bool Snake::changeDirection(Direction newDirection)
 {
-    // 根据当前方向和新的方向判断是否可以改变方向
     switch (this->mDirection)
     {
     case Direction::Up:
     {
-        // 如果蛇当前方向为向上，则判断新的方向不能为向下
-        if (newDirection != Direction::Down)
+        // what you need to do when the current direction of the snake is Up
+        // and the user inputs a new direction?  TODO
+        if (newDirection == Direction::Left || newDirection == Direction::Right)
         {
             this->mDirection = newDirection;
             return true;
         }
-        break;
+        else
+            return false;
     }
     case Direction::Down:
     {
-
-        // 如果蛇当前方向为向下，则判断新的方向不能为向上
-        if (newDirection != Direction::Up)
+        // what you need to do when the current direction of the snake is Down
+        // and the user inputs a new direction? TODO
+        if (newDirection == Direction::Left || newDirection == Direction::Right)
         {
             this->mDirection = newDirection;
             return true;
         }
-        break;
+        else
+            return false;
     }
     case Direction::Left:
     {
-        // 如果蛇当前方向为向左，则判断新的方向不能为向右
-        if (newDirection != Direction::Right)
+        // what you need to do when the current direction of the snake is Left
+        // and the user inputs a new direction? TODO
+        if (newDirection == Direction::Up || newDirection == Direction::Down)
         {
             this->mDirection = newDirection;
             return true;
         }
-        break;
+        else
+            return false;
     }
     case Direction::Right:
     {
-        // 如果蛇当前方向为向右，则判断新的方向不能为向左
-        if (newDirection != Direction::Left)
+        // what you need to do when the current direction of the snake is Right
+        // and the user inputs a new direction? TODO
+        if (newDirection == Direction::Up || newDirection == Direction::Down)
         {
             this->mDirection = newDirection;
             return true;
         }
-        break;
+        else
+            return false;
     }
     }
-
-    // 返回false表示未改变方向，因为蛇不能直接转180度
     return false;
 }
 
-// 生成蛇头的下一个位置
 SnakeBody Snake::createNewHead()
 {
     /* TODO
-     * 读取蛇头当前位置
-     * 读取蛇当前移动方向
-     * 根据方向计算蛇头下一个位置
-     * 返回蛇头下一个位置
+     * read the position of the current head
+     * read the current heading direction
+     * add the new head according to the direction
+     * return the new snake
      */
-    int headX = mSnake[0].getX();
-    int headY = mSnake[0].getY();
+    int headx = this->mSnake[0].getX();
+    int heady = this->mSnake[0].getY();
+    int next_headx, next_heady;
 
-    switch (mDirection)
+    switch (this->mDirection)
     {
     case Direction::Up:
-        headY--;
-        break;
-    case Direction::Down:
-        headY++;
-        break;
-    case Direction::Left:
-        headX--;
-        break;
-    case Direction::Right:
-        headX++;
+    {
+        next_headx = headx;
+        next_heady = heady - 1;
         break;
     }
-
-    return SnakeBody(headX, headY);
-    // SnakeBody newHead = this->mSnake[0];
-    // return newHead;
+    case Direction::Down:
+    {
+        next_headx = headx;
+        next_heady = heady + 1;
+        break;
+    }
+    case Direction::Left:
+    {
+        next_headx = headx - 1;
+        next_heady = heady;
+        break;
+    }
+    case Direction::Right:
+    {
+        next_headx = headx + 1;
+        next_heady = heady;
+        break;
+    }
+    }
+    SnakeBody newhead = SnakeBody(next_headx, next_heady);
+    return newhead;
 }
 
 /*
- * 如果吃到食物，返回true，否则返回false
+ * If eat food, return true, otherwise return false
  */
-// 移动蛇
 bool Snake::moveFoward()
 {
     /*
      * TODO
-     * 移动蛇。
-     * 如果吃到食物，返回true，否则返回false
+     * move the snake forward.
+     * If eat food, return true, otherwise return false
      */
-    // 获取蛇头的下一个位置
-    SnakeBody newHead = this->createNewHead();
-    bool eatFood = false;
     if (this->touchFood())
     {
-        // 如果蛇头下一个位置与食物重合，则蛇吃到食物
-        eatFood = true;
-        // 如果吃到食物，则不删除蛇尾，而是增加蛇头
-        this->mSnake.insert(this->mSnake.begin(), newHead);
+        SnakeBody newhead = this->mFood;
+        this->mSnake.insert(this->mSnake.begin(), newhead);
+        return true;
     }
     else
     {
-        // 如果蛇没有吃到食物，则移动蛇
-        // 将蛇头插入到蛇的身体部位列表的最前面
-        this->mSnake.insert(this->mSnake.begin(), newHead);
-        // 删除蛇的尾部
         this->mSnake.pop_back();
+        SnakeBody newhead = this->createNewHead();
+        this->mSnake.insert(this->mSnake.begin(), newhead);
+        return false;
     }
-    return eatFood;
 }
 
-// 检查蛇是否发生碰撞
 bool Snake::checkCollision()
 {
-    // 如果蛇撞到墙壁或自身，则返回true，否则返回false
     if (this->hitWall() || this->hitSelf())
     {
         return true;
@@ -288,7 +256,6 @@ bool Snake::checkCollision()
     }
 }
 
-// 获取蛇的长度
 int Snake::getLength()
 {
     return this->mSnake.size();
